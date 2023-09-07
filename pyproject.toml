@@ -1,0 +1,26 @@
+[project]
+name = "PyTorchLab"
+version = "0.0.1"
+description = "Do experiments using PyTorch and Lightning."
+authors = [{ name = "TaoChenyue", email = "chenyue.Tao@qq.com" }]
+dependencies = [
+    "torch>=2.0.1",
+    "torchvision>=0.15.2",
+    "torchmetrics>=1.0.1",
+    "tensorboard>=2.13.0",
+    "tensorboardX>=2.6.1",
+    "lightning>=2.0.5",
+    "jsonargparse[signatures]>=4.24.0",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "GPLv3" }
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm.dev-dependencies]
+dev = ["black>=23.7.0", "isort>=5.12.0"]
+
+[tool.pdm.scripts]
+format = { shell = "black . && isort ." }
