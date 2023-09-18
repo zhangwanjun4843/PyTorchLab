@@ -1,5 +1,6 @@
 from typing import Tuple
 
+import numpy as np
 import torch
 from lightning.pytorch import LightningModule
 from torch import nn
@@ -14,7 +15,7 @@ class Generator(nn.Module):
         hidden_dim: int = 256,
     ) -> None:
         super().__init__()
-        feats = torch.prod(image_shape)
+        feats = int(np.prod(image_shape))
         self.image_shape = image_shape
         self.fc1 = nn.Linear(latent_dim, hidden_dim)
         self.fc2 = nn.Linear(self.fc1.out_features, self.fc1.out_features * 2)
@@ -36,7 +37,7 @@ class Discriminator(nn.Module):
         hidden_dim: int = 1024,
     ):
         super().__init__()
-        feats = torch.prod(image_shape)
+        feats = int(np.prod(image_shape))
         self.image_shape = image_shape
         self.fc1 = nn.Linear(feats, hidden_dim)
         self.fc2 = nn.Linear(self.fc1.out_features, self.fc1.out_features // 2)
@@ -59,7 +60,7 @@ class GANModule(LightningModule):
         self,
         latent_dim: int = 100,
         image_shape: Tuple[int, int, int] = (1, 28, 28),
-        lr: float = 1e-3,
+        lr: float = 1e-4,
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
@@ -86,14 +87,19 @@ class GANModule(LightningModule):
     def training_step(self, batch, batch_idx):
         x, _ = batch
         opt_g, opt_d = self.optimizers()
-        z = torch.randn(x.size(0), self.hparams.latent_dim)
-        real = torch.ones(x.size(0), 1, device=x.device)
-        fake = torch.zeros(x.size(0), 1, device=x.device)
+        z = torch.randn(x.size(0), self.hparams.latent_dim).to(device=self.device)
+        real = torch.ones(x.size(0), 1).to(device=self.device)
+        fake = torch.zeros(x.size(0), 1).to(device=self.device)
         # generate image
         image_fake = self(z)
         # train generator
         opt_g.zero_grad()
         loss_g = F.binary_cross_entropy(self.discriminator(image_fake), real)
+        self.log_dict(
+            {"g_loss": loss_g},
+            on_epoch=True,
+            prog_bar=True,
+        )
         loss_g.backward()
         opt_g.step()
         # train discriminator
@@ -103,11 +109,17 @@ class GANModule(LightningModule):
             self.discriminator(image_fake.detach()), fake
         )
         loss_d = loss_d_real + loss_d_fake
+        self.log_dict(
+            {"d_loss": loss_d},
+            on_epoch=True,
+            prog_bar=True,
+        )
         loss_d.backward()
         opt_d.step()
-        # log metrics
         self.log_dict(
-            {"g_loss": loss_g, "d_loss": loss_d},
-            on_epoch=True,
+            {
+                "g_lr": opt_g.optimizer.param_groups[0]["lr"],
+                "d_lr": opt_d.optimizer.param_groups[0]["lr"],
+            },
             prog_bar=True,
         )
