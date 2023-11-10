@@ -1,0 +1,38 @@
+[project]
+name = "PyTorchLab"
+version = "0.0.1"
+description = "Realize AI code with PyTorch and Lightning."
+authors = [{ name = "TaoChenyue", email = "chenyue.Tao@qq.com" }]
+dependencies = [
+    "lightning>=2.0.5",
+    "torch>=2.0.1",
+    "torchmetrics>=1.0.1",
+    "tensorboard>=2.13.0",
+    "tensorboardX>=2.6.1",
+    "torchvision>=0.16.0",
+    "matplotlib>=3.8.1",
+    "jsonargparse[signatures]>=4.27.0",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "GPLv3" }
+
+[project.urls]
+Repository = "https://github.com/TaoChenyue/PyTorchLab"
+# Homepage = ""
+# Documentation = ""
+# Changelog = ""
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "black>=23.7.0",
+    "isort>=5.12.0",
+]
+
+[tool.pdm.scripts]
+format = { shell = "black . && isort ." }
+export = { cmd = "pdm export -o requirements/{args:cross_platforms}.txt --without-hashes" }
