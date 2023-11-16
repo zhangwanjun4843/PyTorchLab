@@ -5,11 +5,11 @@ from lightning.pytorch.callbacks import Callback
 
 
 class LossCallback(Callback):
-    def __init__(self) -> None:
+    def __init__(self,on_epoch=True,prog_bar=True) -> None:
         """Record loss of train/val/test stage.Json format outputs are required, like```{"loss",loss}```."""
         super().__init__()
 
-    def record_loss(self, mode: Literal["train", "val"], pl_module, outputs):
+    def record_loss(self, mode: Literal["train", "val"], pl_module:LightningModule, outputs):
         if not isinstance(outputs, dict):
             return
         loss = outputs.get("loss", None)
@@ -18,6 +18,7 @@ class LossCallback(Callback):
                 {f"{mode}_loss": outputs["loss"]},
                 sync_dist=True,
                 on_epoch=True,
+                on_step = True,
                 prog_bar=True,
             )
 

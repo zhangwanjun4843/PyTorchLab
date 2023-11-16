@@ -165,7 +165,7 @@ cython_debug/
 ## Vscode
 .vscode/
 ## Logs
-lightning_logs/
+*logs/
 ## Datasets
 /dataset/
 ## Experiments

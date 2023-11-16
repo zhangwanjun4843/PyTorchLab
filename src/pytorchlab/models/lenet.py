@@ -63,62 +63,45 @@ class LeNet5(LightningModule):
         return {"input": x, "target": y, "preds": pred}
 
 
-if __name__ == "__main__":
-    import argparse
-    from typing import TypedDict
-
-    from lightning.pytorch import Trainer, seed_everything
-    from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+def cli_main():
+    from lightning.pytorch.cli import LightningCLI
     from lightning.pytorch.loggers import TensorBoardLogger
-
-    from pytorchlab.callbacks.classify import ClassifyCallback,ClassifyPredictCallback
+    from lightning.pytorch.callbacks import ModelCheckpoint,EarlyStopping
+    from pytorchlab.models.lenet import LeNet5
+    from pytorchlab.datamodules.vision import FashionMNISTDataModule, MNISTDataModule
     from pytorchlab.callbacks.loss import LossCallback
-    from pytorchlab.datamodules.vision import (FashionMNISTDataModule,
-                                               MNISTDataModule)
+    from pytorchlab.callbacks.classify import ClassifyCallback,ClassifyPredictCallback
 
-    class MyDict(TypedDict):
-        seed: int
+    logger = TensorBoardLogger(save_dir="logs", name="lenet5")
+    callbacks = [
+        ModelCheckpoint(
+            filename="{epoch}-{val_loss:.2f}",
+            monitor="val_loss",
+            mode="min",
+            save_top_k=3,
+            save_last=True,
+        ),
+        EarlyStopping(
+            monitor="val_loss",
+            mode="min",
+        ),
+        LossCallback(),
+        ClassifyCallback(task="multiclass", num_classes=10),
+        ClassifyPredictCallback(task="multiclass"),
+    ]
+    trainer_defaults = {
+        "devices": [0],
+        "max_epochs": 10,
+        "logger": logger,
+        "callbacks": callbacks,
+    }
+    cli = LightningCLI(
+        seed_everything_default=1234,
+        trainer_defaults=trainer_defaults,
+        model_class=LeNet5,
+        datamodule_class=MNISTDataModule,
+    )
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=1234)
-    parser.add_argument("--devices", type=int, default=1)
-    parser.add_argument("--max_epochs", type=int, default=10)
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--train_root", type=str, default="dataset")
-    parser.add_argument("--test_root", type=str, default="dataset")
-    parser.add_argument(
-        "--dataset", type=str, choices=["mnist", "fashion_mnist"], default="mnist"
-    )
-    args = parser.parse_args()
-    seed_everything(args.seed)
-    datamodule_class = (
-        MNISTDataModule if args.dataset == "mnist" else FashionMNISTDataModule
-    )
-    datamodule = datamodule_class(
-        train_root=args.train_root, test_root=args.test_root, batch_size=args.batch_size
-    )
-    model = LeNet5()
-    trainer = Trainer(
-        devices=args.devices,
-        max_epochs=args.max_epochs,
-        logger=TensorBoardLogger(save_dir="lightning_logs", name="lenet5"),
-        callbacks=[
-            ModelCheckpoint(
-                filename="{epoch}-{val_loss:.2f}",
-                monitor="val_loss",
-                mode="min",
-                save_top_k=3,
-                save_last=True,
-            ),
-            EarlyStopping(
-                monitor="val_loss",
-                mode="min",
-            ),
-            LossCallback(),
-            ClassifyCallback(task="multiclass", num_classes=10),
-            ClassifyPredictCallback(task="multiclass")
-        ],
-    )
-    trainer.fit(model=model, datamodule=datamodule)
-    trainer.test(model=model, datamodule=datamodule)
-    trainer.predict(model, datamodule=datamodule)
+
+if __name__ == "__main__":
+    cli_main()
