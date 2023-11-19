@@ -25,8 +25,17 @@ def deconv_block(
     ]
     if norm:
         layers.append(nn.BatchNorm2d(out_features))
-    layers.append(nn.ReLU(inplace=True))
+    layers.append(nn.LeakyReLU(inplace=True))
     return layers
+
+
+def init_weights(module: nn.Module):
+    for m in module.modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.normal_(m.weight, 0.0, 0.02)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.normal_(m.weight, 1.0, 0.02)
+            nn.init.constant_(m.bias, 0)
 
 
 def conv_block(
@@ -44,10 +53,13 @@ def conv_block(
     Returns:
         ModuleList: list of modules to realize linear layer
     """
-    layers: ModuleList = [nn.Conv2d(in_features, out_features, 3, 2, 1)]
+    layers: ModuleList = [
+        nn.Conv2d(in_features, out_features, 3, 2, 1),
+        nn.LeakyReLU(inplace=True),
+        nn.Dropout2d(),
+    ]
     if norm:
         layers.append(nn.BatchNorm2d(out_features))
-    layers.append(nn.ReLU(inplace=True))
     return layers
 
 
@@ -93,6 +105,7 @@ class Generator(nn.Module):
             layers.extend(deconv_block(hidden_layers[i], hidden_layers[i + 1]))
         layers.extend([nn.Conv2d(hidden_layers[-1], self.channels, 3, 1, 1), nn.Tanh()])
         self.net = nn.Sequential(*layers)
+        init_weights(self.net)
 
     def forward(self, x: torch.Tensor):
         x = self.linear(x)
@@ -133,6 +146,7 @@ class Discriminator(nn.Module):
         for i in range(len(hidden_layers) - 1):
             layers.extend(conv_block(hidden_layers[i], hidden_layers[i + 1]))
         self.net = nn.Sequential(*layers)
+        init_weights(self.net)
 
         self.linear = nn.Sequential(
             nn.Linear(
