@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torch import nn
 
@@ -77,6 +76,7 @@ class Generator(nn.Module):
         self.height, self.width = out_shape[1:]
 
         self.num_blocks = len(hidden_layers)
+        self.hidden_layers = hidden_layers
 
         self.linear = nn.Linear(
             latent_dim,
@@ -98,7 +98,7 @@ class Generator(nn.Module):
         x = self.linear(x)
         x = x.view(
             x.size(0),
-            self.channels,
+            self.hidden_layers[0],
             self.height // 2**self.num_blocks,
             self.width // 2**self.num_blocks,
         )
@@ -129,10 +129,9 @@ class Discriminator(nn.Module):
 
         self.num_blocks = len(hidden_layers)
 
-        layers = conv_block(self.in_features, hidden_layers[0], norm=False)
+        layers = conv_block(self.channels, hidden_layers[0], norm=False)
         for i in range(len(hidden_layers) - 1):
             layers.extend(conv_block(hidden_layers[i], hidden_layers[i + 1]))
-        layers.extend([nn.Linear(hidden_layers[-1], 1), nn.Sigmoid()])
         self.net = nn.Sequential(*layers)
 
         self.linear = nn.Sequential(
@@ -147,6 +146,6 @@ class Discriminator(nn.Module):
 
     def forward(self, x: torch.Tensor):
         x = self.net(x)
-        x = x.view(x.size(0),-1)
+        x = x.view(x.size(0), -1)
         x = self.linear(x)
         return x
