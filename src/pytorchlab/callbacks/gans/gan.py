@@ -56,7 +56,7 @@ class GANCallback(Callback):
             self.save_on_tensorboard(
                 pl_module.logger.experiment, images, trainer.global_step
             )
-        if self._save_on_directory:
+        if self._save_on_directory and pl_module.logger.log_dir is not None:
             save_path = Path(pl_module.logger.log_dir) / self.tag
             save_path.mkdir(exist_ok=True, parents=True)
             self.save_on_directory(images, trainer.current_epoch, save_path)
