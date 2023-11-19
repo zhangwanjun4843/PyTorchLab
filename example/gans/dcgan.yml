@@ -42,7 +42,7 @@ trainer:
     init_args:
       latent_dim: 100
       nums: 25
-      tag: gan_images
+      tag: dcgan_images
       save_on_tensorboard: true
       save_on_directory: true
       nrow: 5
@@ -129,6 +129,8 @@ model:
     - 128
     - 64
     hidden_layers_d:
+    - 16
+    - 32
     - 64
     - 128
     criterion:
