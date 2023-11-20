@@ -1,23 +1,29 @@
+from typing import Callable
+
+import torch
 import torchvision
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
 
 from pytorchlab.datamodules.basic import BasicDataModule
-from pytorchlab.utils.type_hint import Transforms
 
 
 class ImageFolderDataModule(BasicDataModule):
-    def entire_train_dataset(self, transforms: Transforms) -> Dataset:
+    def entire_train_dataset(
+        self, transforms: Callable[[torch.Tensor], torch.Tensor]
+    ) -> Dataset:
         return torchvision.datasets.ImageFolder(
             self.train_root.as_posix(), transform=transforms
         )
 
-    def entire_test_dataset(self, transforms: Transforms) -> Dataset:
+    def entire_test_dataset(
+        self, transforms: Callable[[torch.Tensor], torch.Tensor]
+    ) -> Dataset:
         return torchvision.datasets.ImageFolder(
             self.test_root.as_posix(), transform=transforms
         )
 
-    def default_transforms(self) -> Transforms:
+    def default_transforms(self) -> Callable[[torch.Tensor], torch.Tensor]:
         return transforms.Compose([transforms.ToTensor()])
 
 

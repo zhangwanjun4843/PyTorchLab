@@ -1,11 +1,10 @@
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
+from typing import Callable
 
 import torch
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader, Dataset, random_split
-
-from pytorchlab.utils.type_hint import Stage, Transforms
 
 
 def get_splits(
@@ -54,11 +53,11 @@ class BasicDataModule(LightningDataModule, metaclass=ABCMeta):
         shuffle: bool = True,
         pin_memory: bool = True,
         drop_last: bool = False,
-        transforms: Transforms = None,
-        train_transforms: Transforms = None,
-        val_transforms: Transforms = None,
-        test_transforms: Transforms = None,
-        pred_transforms: Transforms = None,
+        transforms: Callable[[torch.Tensor], torch.Tensor] = None,
+        train_transforms: Callable[[torch.Tensor], torch.Tensor] = None,
+        val_transforms: Callable[[torch.Tensor], torch.Tensor] = None,
+        test_transforms: Callable[[torch.Tensor], torch.Tensor] = None,
+        pred_transforms: Callable[[torch.Tensor], torch.Tensor] = None,
     ) -> None:
         """abstract class for datamodule with train/val/test/pred dataloader
 
@@ -75,11 +74,11 @@ class BasicDataModule(LightningDataModule, metaclass=ABCMeta):
             shuffle (bool, optional): shuffle dataset or not. Defaults to True.
             pin_memory (bool, optional): see more details in torch.utils.data.DataLoader. Defaults to True.
             drop_last (bool, optional): see more details in torch.utils.data.DataLoader. Defaults to False.
-            transforms (Transforms, optional): default transform. Defaults to None.
-            train_transforms (Transforms, optional): train transform. Defaults to None.
-            val_transforms (Transforms, optional): val transform. Defaults to None.
-            test_transforms (Transforms, optional): test transform. Defaults to None.
-            pred_transforms (Transforms, optional): pred transform. Defaults to None.
+            transforms (Callable[[torch.Tensor],torch.Tensor], optional): default transform. Defaults to None.
+            train_transforms (Callable[[torch.Tensor],torch.Tensor], optional): train transform. Defaults to None.
+            val_transforms (Callable[[torch.Tensor],torch.Tensor], optional): val transform. Defaults to None.
+            test_transforms (Callable[[torch.Tensor],torch.Tensor], optional): test transform. Defaults to None.
+            pred_transforms (Callable[[torch.Tensor],torch.Tensor], optional): pred transform. Defaults to None.
         """
 
         super().__init__()
@@ -100,22 +99,26 @@ class BasicDataModule(LightningDataModule, metaclass=ABCMeta):
         self._pred_transforms = pred_transforms
 
     @abstractmethod
-    def entire_train_dataset(self, transforms: Transforms) -> Dataset:
+    def entire_train_dataset(
+        self, transforms: Callable[[torch.Tensor], torch.Tensor]
+    ) -> Dataset:
         """entire dataset for train/val
 
         Args:
-            transforms (Transforms): train/val transform
+            transforms (Callable[[torch.Tensor],torch.Tensor]): train/val transform
 
         Returns:
             Dataset: train dataset
         """
 
     @abstractmethod
-    def entire_test_dataset(self, transforms: Transforms) -> Dataset:
+    def entire_test_dataset(
+        self, transforms: Callable[[torch.Tensor], torch.Tensor]
+    ) -> Dataset:
         """entire dataset for test/pred
 
         Args:
-            transforms (Transforms): test/pred transform
+            transforms (Callable[[torch.Tensor],torch.Tensor]): test/pred transform
 
         Returns:
             Dataset: train dataset
@@ -126,7 +129,7 @@ class BasicDataModule(LightningDataModule, metaclass=ABCMeta):
         return lambda x: x
 
     @property
-    def transforms(self) -> Transforms:
+    def transforms(self) -> Callable[[torch.Tensor], torch.Tensor]:
         """transforms for train/val/test/pred"""
         return self._default_transforms or self.default_transforms()
 
@@ -150,7 +153,7 @@ class BasicDataModule(LightningDataModule, metaclass=ABCMeta):
         """transforms for pred"""
         return self._pred_transforms or self.transforms
 
-    def setup(self, stage: Stage):
+    def setup(self, stage: str):
         """split dataset for different stage
 
         Args:

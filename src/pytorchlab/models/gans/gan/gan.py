@@ -5,8 +5,6 @@ from lightning.pytorch import LightningModule
 from torch import nn
 from torch.optim import Optimizer
 
-from pytorchlab.utils.type_hint import ImageShape, IntList
-
 from .components import Discriminator, Generator
 
 OptimizerCallable = Callable[[Iterable], Optimizer]
@@ -16,10 +14,10 @@ LossCallable = Callable[[Iterable], nn.Module]
 class GAN(LightningModule):
     def __init__(
         self,
-        in_shape: ImageShape,
+        in_shape: tuple[int, int, int],
         latent_dim: int,
-        hidden_layers_g: IntList = [128, 256, 512, 1024],
-        hidden_layers_d: IntList = [512, 256],
+        channel_list_g: list[int] = [128, 256, 512, 1024],
+        channel_list_d: list[int] = [512, 256],
         criterion: LossCallable = nn.BCELoss,
         optimizer_g: OptimizerCallable = torch.optim.Adam,
         optimizer_d: OptimizerCallable = torch.optim.Adam,
@@ -30,10 +28,10 @@ class GAN(LightningModule):
         # init model
         self.latent_dim = latent_dim
         self.generator: nn.Module = Generator(
-            latent_dim=latent_dim, out_shape=in_shape, hidden_layers=hidden_layers_g
+            latent_dim=latent_dim, out_shape=in_shape, channel_list=channel_list_g
         )
         self.discriminator: nn.Module = Discriminator(
-            in_shape=in_shape, hidden_layers=hidden_layers_d
+            in_shape=in_shape, channel_list=channel_list_d
         )
         self.criterion = criterion()
         self.optimizer_g = optimizer_g
