@@ -25,7 +25,7 @@ trainer:
   - class_path: lightning.pytorch.callbacks.ModelCheckpoint
     init_args:
       dirpath: null
-      filename: "{epoch:04d}{g_loss:.2f}"
+      filename: '{epoch:04d}{g_loss:.2f}'
       monitor: g_loss
       verbose: false
       save_last: true
@@ -42,7 +42,7 @@ trainer:
     init_args:
       latent_dim: 100
       nums: 25
-      tag: dcgan_images
+      tag: dcgan_images_on_mnist
       save_on_tensorboard: true
       save_on_directory: true
       nrow: 5
@@ -125,14 +125,14 @@ model:
     - 32
     - 32
     latent_dim: 100
-    hidden_layers_g:
+    channel_list_g:
+    - 256
     - 128
     - 64
-    hidden_layers_d:
-    - 16
-    - 32
+    channel_list_d:
     - 64
     - 128
+    - 256
     criterion:
       class_path: torch.nn.BCELoss
       init_args:
