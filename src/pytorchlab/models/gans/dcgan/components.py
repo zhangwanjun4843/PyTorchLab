@@ -1,120 +1,68 @@
 import torch
 from torch import nn
 
-from pytorchlab.utils.type_hint import ImageShape, IntList, ModuleList
-
-
-def deconv_block(
-    in_features: int,
-    out_features: int,
-    norm: bool = True,
-) -> ModuleList:
-    """upsample image with scale 2
-
-    Args:
-        in_features (int): number of input features
-        out_features (int): number of output features
-        norm (bool, optional): batchnorm or not. Defaults to True.
-
-    Returns:
-        ModuleList: list of modules to realize linear layer
-    """
-    layers: ModuleList = [
-        nn.Upsample(scale_factor=2),
-        nn.Conv2d(in_features, out_features, 3, 1, 1),
-    ]
-    if norm:
-        layers.append(nn.BatchNorm2d(out_features))
-    layers.append(nn.LeakyReLU(inplace=True))
-    return layers
+from pytorchlab.models.common_modules import conv2d_block, deconv2d_block
 
 
 def init_weights(module: nn.Module):
     for m in module.modules():
-        if isinstance(m, nn.Conv2d):
+        if isinstance(m, nn.Conv2d | nn.ConvTranspose2d):
             nn.init.normal_(m.weight, 0.0, 0.02)
         elif isinstance(m, nn.BatchNorm2d):
             nn.init.normal_(m.weight, 1.0, 0.02)
             nn.init.constant_(m.bias, 0)
 
 
-def conv_block(
-    in_features: int,
-    out_features: int,
-    norm: bool = True,
-) -> ModuleList:
-    """downsample image with scale 2
-
-    Args:
-        in_features (int): number of input features
-        out_features (int): number of output features
-        norm (bool, optional): batchnorm or not. Defaults to True.
-
-    Returns:
-        ModuleList: list of modules to realize linear layer
-    """
-    layers: ModuleList = [
-        nn.Conv2d(in_features, out_features, 3, 2, 1),
-        nn.LeakyReLU(inplace=True),
-        nn.Dropout2d(),
-    ]
-    if norm:
-        layers.append(nn.BatchNorm2d(out_features))
-    return layers
-
-
 class Generator(nn.Module):
     def __init__(
         self,
         latent_dim: int,
-        out_shape: ImageShape,
-        hidden_layers: IntList,
+        out_shape: tuple[int, int, int],
+        channel_list: list[int],
     ):
         """
         generate image from latent code
 
+        output H = W = 2 ^ (len(channel_list) + 1)
+
         Args:
             latent_dim (int): dimension of latent code
-            out_shape (ImageShape): shape of output image
-            hidden_layers (IntList): define hidden layers.
+            out_channels (int): channels of output image
+            channel_list (list[int]): channels of hidden layers.
         """
         super().__init__()
+
         self.latent_dim = latent_dim
+        self.channels, self.height, self.width = out_shape
+        self.channel_list = channel_list
+        self.num_blocks = len(channel_list)
+        assert self.num_blocks > 0, "length of channel_list must be greater than 0"
 
-        if len(out_shape) == 2:
-            self.channels = 1
-        else:
-            self.channels = out_shape[0]
-        self.height, self.width = out_shape[1:]
-
-        self.num_blocks = len(hidden_layers)
-        self.hidden_layers = hidden_layers
+        self.height_pred = self.height // 2**self.num_blocks
+        self.width_pred = self.width // 2**self.num_blocks
+        assert (
+            self.height_pred >= 4 and self.width_pred >= 4
+        ), "channel_list is too deep"
 
         self.linear = nn.Linear(
-            latent_dim,
-            hidden_layers[0]
-            * (self.width // 2**self.num_blocks)
-            * (self.height // 2**self.num_blocks),
+            latent_dim, self.height_pred * self.width_pred * channel_list[0]
         )
 
-        layers: ModuleList = [
-            nn.BatchNorm2d(hidden_layers[0]),
-            *deconv_block(hidden_layers[0], hidden_layers[0]),
-        ]
-        for i in range(len(hidden_layers) - 1):
-            layers.extend(deconv_block(hidden_layers[i], hidden_layers[i + 1]))
-        layers.extend([nn.Conv2d(hidden_layers[-1], self.channels, 3, 1, 1), nn.Tanh()])
+        layers: list[nn.Module] = []
+        for i in range(self.num_blocks - 1):
+            layers.extend(deconv2d_block(channel_list[i], channel_list[i + 1], 4, 2, 1))
+        layers.extend(
+            deconv2d_block(
+                channel_list[-1], self.channels, 4, 2, 1, activation=nn.Sigmoid()
+            )
+        )
         self.net = nn.Sequential(*layers)
+
         init_weights(self.net)
 
     def forward(self, x: torch.Tensor):
         x = self.linear(x)
-        x = x.view(
-            x.size(0),
-            self.hidden_layers[0],
-            self.height // 2**self.num_blocks,
-            self.width // 2**self.num_blocks,
-        )
+        x = x.view(x.size(0), self.channel_list[0], self.height_pred, self.width_pred)
         x = self.net(x)
         return x
 
@@ -122,37 +70,38 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(
         self,
-        in_shape: ImageShape,
-        hidden_layers: IntList,
+        in_shape: tuple[int, int, int],
+        channel_list: list[int],
     ):
         """
         discriminate whether image is generated or groundtruth
 
         Args:
-            in_shape (ImageShape): shape of input image
-            hidden_layers (ChannelList, optional): define hidden layers. Defaults to [128,256,512,1024].
+            in_shape (tuple[int,int,int]): shape of input image
+            channel_list (ChannelList, optional): channels of hidden layers. Defaults to [128,256,512,1024].
         """
         super().__init__()
         self.in_shape = in_shape
-        if len(in_shape) == 2:
-            self.channels = 1
-        else:
-            self.channels = in_shape[0]
-        self.height, self.width = in_shape[1:]
+        self.channels, self.height, self.width = in_shape
+        self.channel_list = channel_list
+        self.num_blocks = len(channel_list)
+        assert self.num_blocks > 0, "length of channel_list must be greater than 0"
 
-        self.num_blocks = len(hidden_layers)
+        self.height_pred = self.height // 2**self.num_blocks
+        self.width_pred = self.width // 2**self.num_blocks
+        assert (
+            self.height_pred >= 4 and self.width_pred >= 4
+        ), "channel_list is too deep"
 
-        layers = conv_block(self.channels, hidden_layers[0], norm=False)
-        for i in range(len(hidden_layers) - 1):
-            layers.extend(conv_block(hidden_layers[i], hidden_layers[i + 1]))
+        layers = conv2d_block(self.channels, channel_list[0], 4, 2, 1, norm=False)
+        for i in range(len(channel_list) - 1):
+            layers.extend(conv2d_block(channel_list[i], channel_list[i + 1], 4, 2, 1))
         self.net = nn.Sequential(*layers)
         init_weights(self.net)
 
         self.linear = nn.Sequential(
             nn.Linear(
-                hidden_layers[-1]
-                * (self.height // 2**self.num_blocks)
-                * (self.width // 2**self.num_blocks),
+                channel_list[-1] * self.height_pred * self.width_pred,
                 1,
             ),
             nn.Sigmoid(),
