@@ -53,3 +53,4 @@ autoflake = { cmd = [
 black = "black ."
 isort = "isort ."
 format = { composite = ["autoflake", "black", "isort"] }
+make_gif = { call = "pytorchlab.utils.cli:make_gif_cli"}
