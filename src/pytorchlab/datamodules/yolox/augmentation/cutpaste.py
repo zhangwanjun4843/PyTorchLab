@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from models.utils.bbox import bbox_ioa
+from src.pytorchlab.utils.bbox import bbox_ioa
 
 
 def cutpaste(img, labels, background=None):

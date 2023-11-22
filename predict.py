@@ -1,11 +1,17 @@
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS
+from src.pytorchlab.datamodules.yolox.yolox_dataset import COCODataModule
+from src.pytorchlab.models.yolox.pl_yolox import LitYOLOX
 import torch
+from src.pytorchlab.utils.defaults import argument_parser, load_config
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from src.pytorchlab.datamodules.yolox.cocoDataset import COCODataset
 from src.pytorchlab.datamodules.yolox.mosaic_detection import MosaicDetection
 from src.pytorchlab.datamodules.yolox.augmentation.data_augments import TrainTransform, ValTransform
 from torch.utils.data.sampler import BatchSampler, RandomSampler
-class COCODataModule(pl.LightningDataModule):
+
+    
+class COCOEvalModule(pl.LightningDataModule):
     def __init__(self, cfgs):
         super().__init__()
         self.dataset_train = None
@@ -35,39 +41,8 @@ class COCODataModule(pl.LightningDataModule):
         self.copypaste_scale = self.ct['copypaste_scale']
         # cutpaste
         self.cutpaste_prob = self.ct['cutpaste_prob']
-
-    def train_dataloader(self):
-        self.dataset_train = COCODataset(
-            self.data_dir,
-            name=self.train_dir,
-            img_size=self.img_size_train,
-            preprocess=TrainTransform(max_labels=50, flip_prob=self.flip_prob, hsv_prob=self.hsv_prob),
-            cache=False
-        )
-        self.dataset_train = MosaicDetection(
-            self.dataset_train,
-            mosaic_prob=self.mosaic_prob,
-            mosaic_scale=self.mosaic_scale,
-            img_size=self.img_size_train,
-            preprocess=TrainTransform(
-                max_labels=100,
-                flip_prob=self.flip_prob,
-                hsv_prob=self.hsv_prob,),
-            degrees=self.degrees,
-            translate=self.translate,
-            shear=self.shear,
-            perspective=self.perspective,
-            copypaste_prob=self.copypaste_prob,
-            copypaste_scale=self.copypaste_scale,
-            cutpaste_prob=self.cutpaste_prob,
-        )
-        sampler = RandomSampler(self.dataset_train)
-        batch_sampler = BatchSampler(sampler, batch_size=self.train_batch_size, drop_last=False)
-        train_loader = DataLoader(self.dataset_train, batch_sampler=batch_sampler,
-                                  num_workers=0, pin_memory=True)
-        return train_loader
-
-    def val_dataloader(self):
+    
+    def test_dataloader(self):
         self.dataset_val = COCODataset(
             self.data_dir,
             name=self.val_dir,
@@ -79,3 +54,22 @@ class COCODataModule(pl.LightningDataModule):
         val_loader = DataLoader(self.dataset_val, batch_size=self.val_batch_size, sampler=sampler,
                                 num_workers=0, pin_memory=True, shuffle=False)
         return val_loader
+    
+# 清空viz文件夹
+import os
+import shutil
+viz_dir = r"viz"
+if os.path.exists(viz_dir):
+    shutil.rmtree(viz_dir)
+os.mkdir(viz_dir)
+
+configs_path = r"example\yolox\yolox_nano.yaml"
+configs = load_config(configs_path)
+
+# light=LitYOLOX(configs)
+model = LitYOLOX.load_from_checkpoint(r"lightning_logs\version_28\checkpoints\epoch=299-step=185400.ckpt",cfgs=configs)
+
+
+dataloader = COCOEvalModule(configs).test_dataloader()
+trainer = pl.Trainer(devices=1)
+predictions= trainer.predict(model,dataloader)

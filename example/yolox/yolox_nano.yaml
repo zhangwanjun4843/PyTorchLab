@@ -4,11 +4,11 @@ datamodule: 'neu-det'
 
 dataset:
     format: "COCO"
-    dir: 'D:\COCO'
-    num_classes: 80
-    train: 'train'  # directory name of training image
-    val: 'val'
-    test: 'test'
+    dir: 'H:\001-datasets\yolox\datasets\coco'
+    num_classes: 7
+    train: 'train2017'  # directory name of training image
+    val: 'val2017'
+    test: 'test2017'
     train_size: [224,224]  # [224,224] [416,416] [640,640]
     val_size: [224,224]
     train_batch_size: 16

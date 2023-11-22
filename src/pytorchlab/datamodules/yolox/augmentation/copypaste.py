@@ -1,7 +1,7 @@
 import random
 import cv2
 import numpy as np
-from models.utils.bbox import bbox_ioa
+from src.pytorchlab.utils.bbox import bbox_ioa
 
 
 def copyPaste(img, labels, objects, copypaste_scale):
