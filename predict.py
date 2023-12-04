@@ -66,10 +66,9 @@ os.mkdir(viz_dir)
 configs_path = r"example\yolox\yolox_nano.yaml"
 configs = load_config(configs_path)
 
-# light=LitYOLOX(configs)
 model = LitYOLOX.load_from_checkpoint(r"lightning_logs\version_28\checkpoints\epoch=299-step=185400.ckpt",cfgs=configs)
 
 
 dataloader = COCOEvalModule(configs).test_dataloader()
-trainer = pl.Trainer(devices=1)
+trainer = pl.Trainer(devices=1,precision='16-mixed')
 predictions= trainer.predict(model,dataloader)
