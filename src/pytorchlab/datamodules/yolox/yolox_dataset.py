@@ -42,7 +42,7 @@ class COCODataModule(pl.LightningDataModule):
             name=self.train_dir,
             img_size=self.img_size_train,
             preprocess=TrainTransform(max_labels=50, flip_prob=self.flip_prob, hsv_prob=self.hsv_prob),
-            cache=False
+            cache=True
         )
         self.dataset_train = MosaicDetection(
             self.dataset_train,

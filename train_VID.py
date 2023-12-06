@@ -1,23 +1,18 @@
-from src.pytorchlab.models.yolox.pl_yolox import LitYOLOX
-from src.pytorchlab.datamodules.yolox.yolox_dataset import COCODataModule
+from src.pytorchlab.datamodules.yoloVID.yoloVDataModule import YOLOVDataModule
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import DeviceStatsMonitor
 from src.pytorchlab.utils.defaults import argument_parser, load_config
 from src.pytorchlab.utils.build_logger import build_logger
-
+from src.pytorchlab.models.yoloVID.YOLOVID_Lightning import YOLOV_Lit
 
 def main():
     args = argument_parser().parse_args()
     configs = load_config(args.cfg)
-    model = LitYOLOX.load_from_checkpoint("lightning_logs/version_34/checkpoints/epoch=299-step=185400.ckpt",
-                                          cfgs=configs)
-    data = COCODataModule(configs)
+    model = YOLOV_Lit.load_from_checkpoint("lightning_logs/version_28/checkpoints/epoch=299-step=185400.ckpt",cfgs=configs)
+
+    data= YOLOVDataModule(configs)
     logger = build_logger(args.logger, model, configs)
-
-    device_stats = DeviceStatsMonitor()
     seed_everything(96, workers=True)
-
-    # https://pytorch-lightning.readthedocs.io/en/latest/api/pytorch_lightning.trainer.trainer.Trainer.html?highlight=trainer
     trainer = Trainer(
         devices=1,
         max_epochs=300,
@@ -39,12 +34,14 @@ def main():
     )
 
     trainer.fit(model, datamodule=data)
-    # trainer.tune(model, datamodule=data)
-    # trainer.validate(model, datamodule=data)
-    # trainer.test(model, datamodule=data)
+
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
     main()
-
-# python .\train.py --cfg .\configs\yolox_nano.yaml

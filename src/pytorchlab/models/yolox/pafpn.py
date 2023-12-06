@@ -60,11 +60,11 @@ class PAFPN(nn.Module):
     def forward(self, inputs):
         #  backbone
         [c3, c4, c5] = inputs
-        # top-down
+        # top-》down
         p5 = c5
         p5_expand = self.shrink_conv1(p5)
         p5_upsample = self.upsample(p5_expand)
-        p4 = torch.cat([p5_upsample, c4], 1)
+        p4 = torch.cat([p5_upsample, c4], 1)#在通道上堆叠
         p4 = self.p5_p4(p4)
 
         p4_expand = self.shrink_conv2(p4)
@@ -72,7 +72,7 @@ class PAFPN(nn.Module):
         p3 = torch.cat([p4_upsample, c3], 1)
         p3 = self.p4_p3(p3)
 
-        # down-top
+        # down-》top
         n3 = p3
         n3_downsample = self.downsample_conv1(n3)
         n4 = torch.cat([n3_downsample, p4_expand], 1)

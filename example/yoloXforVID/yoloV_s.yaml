@@ -1,0 +1,71 @@
+# Parameters
+model: 'yolov'
+datamodule: 'neu-det'
+confthre: 0.65
+dataset:
+  Det:
+    format: "COCO"
+    dir: 'H:\001-datasets\yolox\datasets\coco'
+    num_classes: 7
+    train: 'train2017'  # directory name of training image
+    val: 'val2017'
+    test: 'test2017'
+    train_size: [ 224,224 ]  # [224,224] [416,416] [640,640]
+    val_size: [ 224,224 ]
+    train_batch_size: 16
+    val_batch_size: 16
+  VID:
+    num_classes: 7
+    train_batch_size: 16
+    val_batch_size: 16
+    train_file_path: "./yolox/data/datasets/val_new.npy"
+    val_file_path: "./yolox/data/datasets/val_new.npy"
+    data_path: "/D/HANFENGSHUJU"
+    img_train_size: [ 512,512 ]
+    img_test_size: [ 512,512 ]
+    lframe: 5
+    gframe: 16
+
+backbone:
+  name: "cspdarknet"
+  depth: 0.33
+  width: 0.5
+  input_channels: [ 32, 64, 128, 256, 512 ] # five blocks
+  output_features: [ "dark3", "dark4", "dark5" ]
+  normalization: "bn"
+  activation: "silu"
+  drop_rate: 0.0
+neck:
+  name: "pafpn"
+  depth: 0.5
+  input_channels: [ 128, 256, 512 ]
+  normalization: "bn"
+  activation: "silu"
+head:
+  name: "decoupled_head"
+
+optimizer:
+  name: "SGD"
+  learning_rate: 0.01
+  momentum: 0.9
+  weight_decay: 0.0005
+  lr_scheduler: "CosineWarmupScheduler"
+  warmup: 0.05
+  ema: True
+
+transform:
+  # Train transform
+  hsv_prob: 0.5
+  flip_prob: 0.5
+  # Mosaic transform
+  mosaic_prob: 0.9
+  mosaic_scale: [ 0.1, 2.0 ]
+  # Affine transform after mosaic
+  degrees: 10
+  translate: 0.1
+  shear: 2.0
+  perspective: 0.0
+  mixup_prob: 0
+  mixup_scale: [ 0.5, 1.5 ]
+  enable_mixup: True
+

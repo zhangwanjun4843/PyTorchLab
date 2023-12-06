@@ -19,7 +19,6 @@ from src.pytorchlab.models.yolox.lr_scheduler import CosineWarmupScheduler
 from src.pytorchlab.utils.flops import model_summary
 
 
-
 class LitYOLOX(LightningModule):
 
     def __init__(self, cfgs):
@@ -134,8 +133,9 @@ class LitYOLOX(LightningModule):
                 continue
             for det in detections[i]:
                 x1, y1, x2, y2, conf, _, cls = det
-                x1, y1, x2, y2 = int(x1/self.img_size_train[0]*width), int(y1/self.img_size_train[0]*height), int(
-                    x2/self.img_size_train[0]*width), int(y2/self.img_size_train[0]*height)
+                x1, y1, x2, y2 = int(x1 / self.img_size_train[0] * width), int(
+                    y1 / self.img_size_train[0] * height), int(
+                    x2 / self.img_size_train[0] * width), int(y2 / self.img_size_train[0] * height)
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(img, class_ids[int(cls)], (x1, y1),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
