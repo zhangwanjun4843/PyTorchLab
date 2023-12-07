@@ -2,8 +2,9 @@
 model: 'yolov'
 datamodule: 'neu-det'
 confthre: 0.65
+nmsthre: 0.45
 dataset:
-  Det:
+  DET:
     format: "COCO"
     dir: 'H:\001-datasets\yolox\datasets\coco'
     num_classes: 7
@@ -68,4 +69,5 @@ transform:
   mixup_prob: 0
   mixup_scale: [ 0.5, 1.5 ]
   enable_mixup: True
+  cutpaste_prob: 0
 
