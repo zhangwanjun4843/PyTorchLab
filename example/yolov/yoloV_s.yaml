@@ -2,8 +2,9 @@
 model: 'yolov'
 datamodule: 'neu-det'
 confthre: 0.65
+nmsthre: 0.45
 dataset:
-  Det:
+  DEt:
     format: "COCO"
     dir: 'H:\001-datasets\yolox\datasets\coco'
     num_classes: 7
@@ -18,9 +19,9 @@ dataset:
     num_classes: 7
     train_batch_size: 16
     val_batch_size: 16
-    train_file_path: "./yolox/data/datasets/val_new.npy"
-    val_file_path: "./yolox/data/datasets/val_new.npy"
-    data_path: "/D/HANFENGSHUJU"
+    train_file_path: "example/yolov/train_new.npy"
+    val_file_path: "example/yolov/val_new.npy"
+    data_path: "E:/HANFENGSHUJU"
     img_train_size: [ 512,512 ]
     img_test_size: [ 512,512 ]
     lframe: 5
@@ -28,8 +29,8 @@ dataset:
 
 backbone:
   name: "cspdarknet"
-  depth: 0.5
-  width: 1.0
+  depth: 0.33
+  width: 0.5
   input_channels: [ 32, 64, 128, 256, 512 ] # five blocks
   output_features: [ "dark3", "dark4", "dark5" ]
   normalization: "bn"

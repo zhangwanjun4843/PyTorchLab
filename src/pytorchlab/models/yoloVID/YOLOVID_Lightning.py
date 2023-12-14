@@ -20,6 +20,7 @@ def init_yolo(M):
 class YOLOV_Lit(pl.LightningModule):
     def __init__(self, cfgs):
         super().__init__()
+        self.cfgs = cfgs
         self.best_ap50_95 = 0
         self.best_ap50 = 0
         self.evaluator: VIDEvaluator = None
@@ -29,6 +30,9 @@ class YOLOV_Lit(pl.LightningModule):
         self.VIDdata_config = cfgs['dataset']['VID']
         self.optimizer_config = cfgs['optimizer']
 
+        self.img_size_val = cfgs['dataset']['VID']['img_train_size']
+        self.img_size_train = cfgs['dataset']['VID']['img_train_size']
+        self.img_size_test = cfgs['dataset']['VID']['img_test_size']
         self.depth = self.backbone_config['depth']
         self.width = self.backbone_config['width']
         self.num_classes = self.VIDdata_config['num_classes']
@@ -38,6 +42,8 @@ class YOLOV_Lit(pl.LightningModule):
         self.warmup = self.optimizer_config['warmup']
         self.ema = self.optimizer_config['ema']
         self.ema_model = None
+        # 手动backward
+        self.automatic_optimization = False
 
         in_channels = [256, 512, 1024]
 
@@ -76,10 +82,10 @@ class YOLOV_Lit(pl.LightningModule):
         return [optimizer], [lr_scheduler]
 
     def on_validation_epoch_end(self) -> None:
-        pass
+        self.log("best_mAP", self.best_ap50_95, prog_bar=True)
+        self.log("best_mAP50", self.best_ap50, prog_bar=True)
 
-    def validation_step(self, batch, batch_idx):
-        imgs, labels, img_hw, image_id, img_name = batch
+    def on_validation_end(self) -> None:
         if self.ema_model is not None:
             model = self.ema_model.ema
         else:
@@ -91,24 +97,27 @@ class YOLOV_Lit(pl.LightningModule):
         )
         ap50_95 = summary[0]
         ap50 = summary[1]
-        self.log("val/mAP", ap50_95, prog_bar=False)
-        self.log("val/mAP50", ap50, prog_bar=False)
+        print(summary[2])
         self.best_ap50 = max(self.best_ap50, ap50)
         self.best_ap50_95 = max(self.best_ap50_95, ap50_95)
         print("Batch {:d}, mAP = {:.3f}, mAP50 = {:.3f}".format(
             self.current_epoch, ap50_95, ap50))
 
+    def validation_step(self, batch, batch_idx):
+        # 获取batch的数量
+        imgs, labels, info_imgs, label, path, _ = batch
 
     def on_validation_start(self) -> None:
         self.evaluator = VIDEvaluator(
             dataloader=self.trainer.datamodule.val_dataloader(),
             img_size=self.img_size_val,
             confthre=self.cfgs['confthre'],
+            nmsthre=self.cfgs['nmsthre'],
             num_classes=self.num_classes
         )
 
     def training_step(self, batch, batch_idx):
-        imgs, labels, _, _, _ = batch
+        imgs, labels, info_imgs, label_list, path, _ = batch
         output = self.model(imgs, labels)
         loss = output["total_loss"]
         self.log("total_loss", loss, prog_bar=True)
@@ -122,4 +131,7 @@ class YOLOV_Lit(pl.LightningModule):
         if self.ema is True:
             self.ema_model.update(self.model)
         self.lr_schedulers().step()
-        print("Batch {:d}, loss = {:.3f}".format(self.current_epoch, loss))
+
+    def on_train_epoch_end(self) -> None:
+        print("Best mAP = {:.3f}, best mAP50 = {:.3f}".format(
+            self.best_ap50_95, self.best_ap50))

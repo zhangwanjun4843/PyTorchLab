@@ -10,14 +10,35 @@ from .datasets_wrapper import Dataset
 import os
 
 
+def get_mosaic_coordinate(mosaic_image, mosaic_index, xc, yc, w, h, input_h, input_w):
+    # TODO update doc
+    # index0 to top left part of image
+    if mosaic_index == 0:
+        x1, y1, x2, y2 = max(xc - w, 0), max(yc - h, 0), xc, yc
+        small_coord = w - (x2 - x1), h - (y2 - y1), w, h
+    # index1 to top right part of image
+    elif mosaic_index == 1:
+        x1, y1, x2, y2 = xc, max(yc - h, 0), min(xc + w, input_w * 2), yc
+        small_coord = 0, h - (y2 - y1), min(w, x2 - x1), h
+    # index2 to bottom left part of image
+    elif mosaic_index == 2:
+        x1, y1, x2, y2 = max(xc - w, 0), yc, xc, min(input_h * 2, yc + h)
+        small_coord = w - (x2 - x1), 0, w, min(y2 - y1, h)
+    # index2 to bottom right part of image
+    elif mosaic_index == 3:
+        x1, y1, x2, y2 = xc, yc, min(xc + w, input_w * 2), min(input_h * 2, yc + h)  # noqa
+        small_coord = 0, 0, min(w, x2 - x1), min(y2 - y1, h)
+    return (x1, y1, x2, y2), small_coord
+
+
 class MosaicDetection_VID(Dataset):
     """Detection dataset wrapper that performs mixup for normal dataset."""
 
     def __init__(
-        self, dataset, img_size, mosaic=True, preproc=None,
-        degrees=10.0, translate=0.1, mosaic_scale=(0.5, 1.5),
-        mixup_scale=(0.5, 1.5), shear=2.0,perspective=0.0,
-        enable_mixup=True, mosaic_prob=1.0, mixup_prob=1.0, dataset_path = ''
+            self, dataset, img_size, mosaic=True, preproc=None,
+            degrees=10.0, translate=0.1, mosaic_scale=(0.5, 1.5),
+            mixup_scale=(0.5, 1.5), shear=2.0, perspective=0.0,
+            enable_mixup=True, mosaic_prob=1.0, mixup_prob=1.0, dataset_path=''
     ):
         """
 
@@ -51,27 +72,28 @@ class MosaicDetection_VID(Dataset):
         self.res = dataset.res
         self.file_num = 0
         self.dataset_path = dataset_path
+
     def __len__(self):
         return len(self._dataset)
 
-    def get_mosic_idx(self,path):
-        path = os.path.join(self.dataset_path,path)
-        path_dir = path[:path.rfind('/')+1]
-        anno_path = path_dir.replace("Data","Annotations")
+    def get_mosic_idx(self, path):
+        path = os.path.join(self.dataset_path, path)
+        path_dir = path[:path.rfind('\\') + 1]
+        anno_path = path_dir.replace("Data", "Annotations")
         frame_num = len(os.listdir(anno_path))
         self.file_num = frame_num
-        #print(frame_num)
-        rand_idx = [random.randint(0,frame_num-1) for _ in range(3)]
+        # print(frame_num)
+        rand_idx = [random.randint(0, frame_num - 1) for _ in range(3)]
         raw = '00000000'
         res = []
         res.append(path)
         for idx in rand_idx:
             str_idx = str(idx)
-            frame_idx = path_dir +raw[0:-len(str_idx)] + str_idx + '.JPEG'
+            frame_idx = path_dir + raw[0:-len(str_idx)] + str_idx + '.JPEG'
             res.append(frame_idx)
         return res
 
-    #@Dataset.mosaic_getitem
+    # @Dataset.mosaic_getitem
     def __getitem__(self, idx):
         if self.enable_mosaic and random.random() < self.mosaic_prob:
 
@@ -85,7 +107,7 @@ class MosaicDetection_VID(Dataset):
 
             indices = self.get_mosic_idx(idx)
             # 3 additional image indices
-            #indices = [idx] + [random.randint(0, len(self._dataset) - 1) for _ in range(3)]
+            # indices = [idx] + [random.randint(0, len(self._dataset) - 1) for _ in range(3)]
 
             for i_mosaic, index in enumerate(indices):
                 img, _labels, _, img_id = self._dataset.pull_item(index)
@@ -138,33 +160,33 @@ class MosaicDetection_VID(Dataset):
             # CopyPaste: https://arxiv.org/abs/2012.07177
             # -----------------------------------------------------------------
             if (
-                self.enable_mixup
-                and not len(mosaic_labels) == 0
-                and random.random() < self.mixup_prob
+                    self.enable_mixup
+                    and not len(mosaic_labels) == 0
+                    and random.random() < self.mixup_prob
             ):
-                mosaic_img, mosaic_labels = self.mixup(mosaic_img, mosaic_labels, self.input_dim,idx)
+                mosaic_img, mosaic_labels = self.mixup(mosaic_img, mosaic_labels, self.input_dim, idx)
             mix_img, padded_labels = self.preproc(mosaic_img, mosaic_labels, self.input_dim)
             img_info = (mix_img.shape[1], mix_img.shape[0])
 
-            return mix_img, padded_labels, img_info, idx#np.array([idx])
+            return mix_img, padded_labels, img_info, idx  # np.array([idx])
 
         else:
             self._dataset._input_dim = self.input_dim
-            img, label, img_info, idx= self._dataset.pull_item(idx)
+            img, label, img_info, idx = self._dataset.pull_item(idx)
             img, label = self.preproc(img, label, self.input_dim)
-            return img, label, img_info, idx#np.array([idx])
+            return img, label, img_info, idx  # np.array([idx])
 
-    def get_mixup_idx(self,path):
-        path = os.path.join(self.dataset_path,path)
-        path_dir = path[:path.rfind('/')+1]
+    def get_mixup_idx(self, path):
+        path = os.path.join(self.dataset_path, path)
+        path_dir = path[:path.rfind('/') + 1]
         frame_num = self.file_num
-        rand_idx = random.randint(0,frame_num-1)
+        rand_idx = random.randint(0, frame_num - 1)
         str_idx = str(rand_idx)
         raw = '00000000'
         frame_idx = path_dir + raw[0:-len(str_idx)] + str_idx + '.JPEG'
         return frame_idx
 
-    def mixup(self, origin_img, origin_labels, input_dim,path):
+    def mixup(self, origin_img, origin_labels, input_dim, path):
         jit_factor = random.uniform(*self.mixup_scale)
         FLIP = random.uniform(0, 1) > 0.5
         cp_labels = []
@@ -189,7 +211,7 @@ class MosaicDetection_VID(Dataset):
         )
 
         cp_img[
-            : int(img.shape[0] * cp_scale_ratio), : int(img.shape[1] * cp_scale_ratio)
+        : int(img.shape[0] * cp_scale_ratio), : int(img.shape[1] * cp_scale_ratio)
         ] = resized_img
 
         cp_img = cv2.resize(
@@ -214,15 +236,15 @@ class MosaicDetection_VID(Dataset):
         if padded_img.shape[1] > target_w:
             x_offset = random.randint(0, padded_img.shape[1] - target_w - 1)
         padded_cropped_img = padded_img[
-            y_offset: y_offset + target_h, x_offset: x_offset + target_w
-        ]
+                             y_offset: y_offset + target_h, x_offset: x_offset + target_w
+                             ]
 
         cp_bboxes_origin_np = adjust_box_anns(
             cp_labels[:, :4].copy(), cp_scale_ratio, 0, 0, origin_w, origin_h
         )
         if FLIP:
             cp_bboxes_origin_np[:, 0::2] = (
-                origin_w - cp_bboxes_origin_np[:, 0::2][:, ::-1]
+                    origin_w - cp_bboxes_origin_np[:, 0::2][:, ::-1]
             )
         cp_bboxes_transformed_np = cp_bboxes_origin_np.copy()
         cp_bboxes_transformed_np[:, 0::2] = np.clip(

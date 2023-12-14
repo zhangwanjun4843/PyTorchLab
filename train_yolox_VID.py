@@ -19,8 +19,8 @@ def main():
     trainer = Trainer(
         devices=1,
         max_epochs=300,
-        check_val_every_n_epoch=1,
-        log_every_n_steps=1,
+        check_val_every_n_epoch=10,
+        log_every_n_steps=10,
         enable_progress_bar=True,
         logger=logger,
         # precision=16,

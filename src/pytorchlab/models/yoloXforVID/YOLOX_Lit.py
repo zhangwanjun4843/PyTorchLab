@@ -1,10 +1,8 @@
 import time
-from typing import Any
 
 import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 from pytorchlab.models.yolox.yolox_decoder import YOLOXDecoder
 # Data
@@ -14,10 +12,7 @@ from src.pytorchlab.models.yolox.yolox_loss import YOLOXLoss
 from src.pytorchlab.models.yolox.lr_scheduler import CosineWarmupScheduler
 from src.pytorchlab.utils.flops import model_summary
 from src.pytorchlab.models.yoloVID.yolo_pafpn import YOLOPAFPN
-from src.pytorchlab.models.yoloXforVID.yolo_head import YOLOXHead
-from src.pytorchlab.models.yoloXforVID.yolox import YOLOX
 from src.pytorchlab.models.yolox.evaluators.coco import COCOEvaluator, convert_to_coco_format
-from src.pytorchlab.utils.yoloVID import postprocess, time_synchronized
 
 
 class YOLOXFORVID(LightningModule):

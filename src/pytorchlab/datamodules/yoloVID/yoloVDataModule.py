@@ -7,12 +7,12 @@ class YOLOVDataModule(pl.LightningDataModule):
         super().__init__()
         self.dataset_val = None
         self.VID_config = cfgs['dataset']['VID']
-        self.trainsforms_config = cfgs['transforms']
+        self.trainsforms_config = cfgs['transform']
 
         self.train_file_path = self.VID_config['train_file_path']
         self.val_file_path = self.VID_config['val_file_path']
-        self.img_train_size = self.VID_config['train_size']
-        self.img_val_size = self.VID_config['val_size']
+        self.img_train_size = self.VID_config['img_train_size']
+        self.img_val_size = self.VID_config['img_test_size']
         self.lframe = self.VID_config['lframe']
         self.gframe = self.VID_config['gframe']
         self.hsv_prob = self.trainsforms_config['hsv_prob']
@@ -73,3 +73,4 @@ class YOLOVDataModule(pl.LightningDataModule):
                                       lframe=self.lframe,
                                       gframe=self.gframe, val=True, dataset_path=self.data_dir)
         val_loader = get_vid_loader(batch_size=self.val_batch_size, data_num_workers=0, dataset=self.dataset_val, )
+        return val_loader

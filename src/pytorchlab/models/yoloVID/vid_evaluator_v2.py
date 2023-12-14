@@ -11,7 +11,7 @@ import tempfile
 import time
 from loguru import logger
 from tqdm import tqdm
-from src.pytorchlab.models.yoloVID.coco_evaluator import per_class_AR_table,per_class_AP_table
+from src.pytorchlab.models.yoloVID.coco_evaluator import per_class_AR_table, per_class_AP_table
 import torch
 import pycocotools.coco
 
@@ -24,7 +24,8 @@ from src.pytorchlab.utils.yoloVID import (
     xyxy2xywh
 )
 
-#from yolox.data.datasets.vid_classes import Arg_classes as  vid_classes
+
+# from yolox.data.datasets.vid_classes import Arg_classes as  vid_classes
 
 class VIDEvaluator:
     """
@@ -33,7 +34,7 @@ class VIDEvaluator:
     """
 
     def __init__(
-        self, dataloader, img_size, confthre, nmsthre, num_classes, testdev=False, gl_mode = False
+            self, dataloader, img_size, confthre, nmsthre, num_classes, testdev=False, gl_mode=False
     ):
         """
         Args:
@@ -91,15 +92,16 @@ class VIDEvaluator:
         self.tmp_name_refined = './refined_pred.json'
         self.gt_ori = './gt_ori.json'
         self.gt_refined = './gt_refined.json'
+
     def evaluate(
-        self,
-        model,
-        distributed=False,
-        half=True,
-        trt_file=None,
-        decoder=None,
-        test_size=None,
-        img_path=None
+            self,
+            model,
+            distributed=False,
+            half=True,
+            trt_file=None,
+            decoder=None,
+            test_size=None,
+            img_path=None
     ):
         """
         COCO average precision (AP) Evaluation. Iterate inference on the test dataset
@@ -132,8 +134,8 @@ class VIDEvaluator:
         nms_time = 0
         n_samples = max(len(self.dataloader) - 1, 1)
 
-        for cur_iter, (imgs, _, info_imgs,label,path,time_embedding) in enumerate(
-            progress_bar(self.dataloader)
+        for cur_iter, (imgs, _, info_imgs, label, path, time_embedding) in enumerate(
+                progress_bar(self.dataloader)
         ):
 
             with torch.no_grad():
@@ -142,16 +144,16 @@ class VIDEvaluator:
                 is_time_record = cur_iter < len(self.dataloader) - 1
                 if is_time_record:
                     start = time.time()
-                outputs,ori_res = model(imgs)
+                outputs, ori_res = model(imgs)
 
                 if is_time_record:
                     infer_end = time_synchronized()
                     inference_time += infer_end - start
             if self.gl_mode:
-                local_num = int(imgs.shape[0]/2)
+                local_num = int(imgs.shape[0] / 2)
                 info_imgs = info_imgs[:local_num]
                 label = label[:local_num]
-            temp_data_list,temp_label_list = self.convert_to_coco_format(outputs, info_imgs, copy.deepcopy(label))
+            temp_data_list, temp_label_list = self.convert_to_coco_format(outputs, info_imgs, copy.deepcopy(label))
             data_list.extend(temp_data_list)
             labels_list.extend(temp_label_list)
 
@@ -170,19 +172,19 @@ class VIDEvaluator:
         synchronize()
         return eval_results
 
-    def convert_to_coco_format(self, outputs, info_imgs,labels):
+    def convert_to_coco_format(self, outputs, info_imgs, labels):
         data_list = []
         label_list = []
         frame_now = 0
 
-        for (output, info_img,_label) in zip(
-            outputs, info_imgs,labels
+        for (output, info_img, _label) in zip(
+                outputs, info_imgs, labels
         ):
-            #if frame_now>=self.lframe: break
+            # if frame_now>=self.lframe: break
             scale = min(
                 self.img_size[0] / float(info_img[0]), self.img_size[1] / float(info_img[1])
             )
-            bboxes_label = _label[:,1:]
+            bboxes_label = _label[:, 1:]
             bboxes_label /= scale
             bboxes_label = xyxy2xywh(bboxes_label)
             cls_label = _label[:, 0]
@@ -192,13 +194,13 @@ class VIDEvaluator:
                     "category_id": int(cls_label[ind]),
                     "bbox": bboxes_label[ind].numpy().tolist(),
                     "segmentation": [],
-                    'id':self.box_id,
+                    'id': self.box_id,
                     "iscrowd": 0,
-                    'area':int(bboxes_label[ind][2]*bboxes_label[ind][3])
+                    'area': int(bboxes_label[ind][2] * bboxes_label[ind][3])
                 }  # COCO json format
-                self.box_id = self.box_id+1
+                self.box_id = self.box_id + 1
                 label_list.append(label_pred_data)
-            self.vid_to_coco['images'].append({'id':self.id})
+            self.vid_to_coco['images'].append({'id': self.id})
 
             if output is None:
                 self.id = self.id + 1
@@ -209,7 +211,6 @@ class VIDEvaluator:
             # preprocessing: resize
             bboxes /= scale
             bboxes = xyxy2xywh(bboxes)
-
 
             cls = output[:, 6]
             scores = output[:, 4] * output[:, 5]
@@ -224,28 +225,27 @@ class VIDEvaluator:
                     "segmentation": [],
                 }  # COCO json format
                 data_list.append(pred_data)
-            self.id = self.id+1
-            frame_now = frame_now+1
+            self.id = self.id + 1
+            frame_now = frame_now + 1
 
-        return data_list,label_list
+        return data_list, label_list
 
-    def convert_to_coco_format_ori(self, outputs, info_imgs,labels):
+    def convert_to_coco_format_ori(self, outputs, info_imgs, labels):
 
         data_list = []
         label_list = []
         frame_now = 0
-        for (output, info_img,_label) in zip(
-            outputs, info_imgs,labels
+        for (output, info_img, _label) in zip(
+                outputs, info_imgs, labels
         ):
             scale = min(
                 self.img_size[0] / float(info_img[0]), self.img_size[1] / float(info_img[1])
             )
-            bboxes_label = _label[:,1:]
+            bboxes_label = _label[:, 1:]
             bboxes_label /= scale
             bboxes_label = xyxy2xywh(bboxes_label)
             cls_label = _label[:, 0]
             for ind in range(bboxes_label.shape[0]):
-
                 label_pred_data = {
                     "image_id": int(self.id_ori),
                     "category_id": int(cls_label[ind]),
@@ -258,7 +258,7 @@ class VIDEvaluator:
                 self.box_id_ori = self.box_id_ori + 1
                 label_list.append(label_pred_data)
 
-                #print('label:',label_pred_data)
+                # print('label:',label_pred_data)
 
             self.vid_to_coco_ori['images'].append({'id': self.id_ori})
 
@@ -273,10 +273,9 @@ class VIDEvaluator:
             bboxes /= scale
             bboxes = xyxy2xywh(bboxes)
 
-
             cls = output[:, 6]
             scores = output[:, 4] * output[:, 5]
-            #print(cls.shape)
+            # print(cls.shape)
             for ind in range(bboxes.shape[0]):
                 label = int(cls[ind])
                 pred_data = {
@@ -288,10 +287,9 @@ class VIDEvaluator:
                 }  # COCO json format
                 data_list.append(pred_data)
 
-
             self.id_ori = self.id_ori + 1
             frame_now = frame_now + 1
-        return data_list,label_list
+        return data_list, label_list
 
     def evaluate_prediction(self, data_dict, statistics, ori=False):
         if not is_main_process():
@@ -311,9 +309,9 @@ class VIDEvaluator:
             [
                 "Average {} time: {:.2f} ms".format(k, v)
                 for k, v in zip(
-                    ["forward", "NMS", "inference"],
-                    [a_infer_time, a_nms_time, (a_infer_time + a_nms_time)],
-                )
+                ["forward", "NMS", "inference"],
+                [a_infer_time, a_nms_time, (a_infer_time + a_nms_time)],
+            )
             ]
         )
 
@@ -340,11 +338,10 @@ class VIDEvaluator:
             cocoDt = cocoGt.loadRes(tmp)
             try:
                 # from yolox.layers import COCOeval_opt as COCOeval
-                from pycocotools.cocoeval import COCOeval
-            except ImportError:
-                from pycocotools.cocoeval import COCOeval
+                from src.pytorchlab.datamodules.yoloVID.cocoevalFORVID import COCOeval
 
-                logger.warning("Use standard COCOeval.")
+            except ImportError:
+                raise ImportError("Please run 'pip install -U pycocotools' to install pycocotools first.")
 
             cocoEval = COCOeval(cocoGt, cocoDt, annType[1])
             cocoEval.evaluate()
@@ -360,7 +357,7 @@ class VIDEvaluator:
             info += "per class AR:\n" + AR_table + "\n"
             with contextlib.redirect_stdout(redirect_string):
                 cocoEval.summarize()
-                
+
             voc_map_info_list = []
             voc_mar_info_list = []
             for i in range(len(cat_ids)):
@@ -368,7 +365,7 @@ class VIDEvaluator:
                 voc_map_info_list.append(" {:15}: {}".format(cat_names[i], stats[1]))
             print_voc_ap = "\n".join(voc_map_info_list)
             print(print_voc_ap)
-            print("mAR50:\n" )
+            print("mAR50:\n")
             for i in range(len(cat_ids)):
                 stats, _ = cocoEval.summarize(catId=i)
                 voc_mar_info_list.append(" {:15}: {}".format(cat_names[i], stats[12]))
