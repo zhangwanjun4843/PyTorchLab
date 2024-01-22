@@ -37,7 +37,9 @@ class YOLOXHead(nn.Module):
             act="silu",
             depthwise=False,
             heads=4,
-            drop=0.0
+            drop=0.0,
+            trans: MSA_yolov_online = None,
+            linear_pred=None
     ):
         """
         Args:
@@ -62,10 +64,9 @@ class YOLOXHead(nn.Module):
         self.cls_convs2 = nn.ModuleList()
 
         self.width = int(256 * width)
-        self.trans = MSA_yolov_online(dim=self.width, out_dim=4 * self.width, num_heads=heads, attn_drop=drop)
+        self.trans = trans
         self.stems = nn.ModuleList()
-        self.linear_pred = nn.Linear(int(4 * self.width), 8)  # Mlp(in_features=512,hidden_features=self.num_classes+1)
-
+        self.linear_pred = linear_pred
         Conv = DWConv if depthwise else BaseConv
 
         for i in range(len(in_channels)):

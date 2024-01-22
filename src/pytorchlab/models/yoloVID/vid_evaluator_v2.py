@@ -360,6 +360,7 @@ class VIDEvaluator:
 
             voc_map_info_list = []
             voc_mar_info_list = []
+            print("mAP:\n")
             for i in range(len(cat_ids)):
                 stats, _ = cocoEval.summarize(catId=i)
                 voc_map_info_list.append(" {:15}: {}".format(cat_names[i], stats[1]))

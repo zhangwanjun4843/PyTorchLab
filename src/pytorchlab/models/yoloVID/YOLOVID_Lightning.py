@@ -8,6 +8,7 @@ from src.pytorchlab.models.yolox.lr_scheduler import CosineWarmupScheduler
 from src.pytorchlab.utils.ema import ModelEMA
 from src.pytorchlab.utils.flops import model_summary
 from src.pytorchlab.models.yoloVID.vid_evaluator_v2 import VIDEvaluator
+from .post_trans import MSA_yolov_online
 
 
 def init_yolo(M):
@@ -47,23 +48,24 @@ class YOLOV_Lit(pl.LightningModule):
 
         in_channels = [256, 512, 1024]
 
-        backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels)
-        for layer in backbone.parameters():
+        self.backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels)
+        for layer in self.backbone.parameters():
             layer.requires_grad = False  # fix the backbone
-
-        head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, heads=4, drop=self.drop_rate)
-        for layer in head.stems.parameters():
-            layer.requires_grad = False  # set stem fixed
-
-        for layer in head.reg_convs.parameters():
-            layer.requires_grad = False
-        for layer in head.reg_preds.parameters():
-            layer.requires_grad = False
-        for layer in head.obj_preds.parameters():
-            layer.requires_grad = False
-        for layer in head.cls_convs.parameters():
-            layer.requires_grad = False
-        self.model = YOLOV(backbone, head)
+        self.trans =MSA_yolov_online(dim=int(256 * self.width), out_dim=4 * int(256 * self.width), num_heads=4, attn_drop=self.drop_rate)
+        self.linear_pred = nn.Linear(int(4 * int(256 * self.width)), self.num_classes+1)  # Mlp(in_features=512,hidden_features=self.num_classes+1)
+        self.head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, heads=4, drop=self.drop_rate,trans=self.trans, linear_pred=self.linear_pred)
+        # for layer in self.head.stems.parameters():
+        #     layer.requires_grad = False  # set stem fixed
+        #
+        # for layer in self.head.reg_convs.parameters():
+        #     layer.requires_grad = False
+        # for layer in self.head.reg_preds.parameters():
+        #     layer.requires_grad = False
+        # for layer in self.head.obj_preds.parameters():
+        #     layer.requires_grad = False
+        # for layer in self.head.cls_convs.parameters():
+        #     layer.requires_grad = False
+        self.model = YOLOV(self.backbone, self.head)
         self.model.apply(init_yolo)
         self.model.head.initialize_biases(1e-2)
 
@@ -85,6 +87,7 @@ class YOLOV_Lit(pl.LightningModule):
         self.log("best_mAP", self.best_ap50_95, prog_bar=True)
         self.log("best_mAP50", self.best_ap50, prog_bar=True)
 
+
     def on_validation_end(self) -> None:
         if self.ema_model is not None:
             model = self.ema_model.ema
@@ -100,6 +103,7 @@ class YOLOV_Lit(pl.LightningModule):
         print(summary[2])
         self.best_ap50 = max(self.best_ap50, ap50)
         self.best_ap50_95 = max(self.best_ap50_95, ap50_95)
+
         print("Batch {:d}, mAP = {:.3f}, mAP50 = {:.3f}".format(
             self.current_epoch, ap50_95, ap50))
 
