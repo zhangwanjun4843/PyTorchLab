@@ -9,9 +9,12 @@ from src.pytorchlab.utils.build_logger import build_logger
 def main():
     args = argument_parser().parse_args()
     configs = load_config(args.cfg)
-    model = LitYOLOX.load_from_checkpoint("lightning_logs/version_34/checkpoints/epoch=299-step=185400.ckpt",
+    model = LitYOLOX.load_from_checkpoint("lightning_logs/version_28/checkpoints/epoch=299-step=185400.ckpt",
                                           cfgs=configs)
+    # LitYOLOX.to_onnx("yolox.onnx", model, input_sample=(1, 3, 640, 640))
+
     data = COCODataModule(configs)
+
     logger = build_logger(args.logger, model, configs)
 
     device_stats = DeviceStatsMonitor()
