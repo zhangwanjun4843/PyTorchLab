@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from src.pytorchlab.models.yoloVID.darknet import CSPDarknet
+from src.pytorchlab.models.yoloVID.network_blocks import BaseConv, CSPLayer, DWConv
 from src.pytorchlab.utils.MemMatYOLOX.utils import conv1x1, conv3x3
 
 
@@ -10,19 +11,34 @@ def _sigmoid(x):
     return x
 
 
-class MatrixNet(nn.Module):
-    def __init__(self, resnet, layers):
-        super(MatrixNet, self).__init__()
+class CSPBackbone(nn.Module):
+    """
+    YOLOv3 model. Darknet 53 is the default backbone of this model.
+    """
 
-        self.resnet = resnet
-        # We first create a graph of how the layers in the 5x5 matrix are connected. 12 means row 1 column 2 and so on
+    def __init__(
+            self,
+            depth=1.0,
+            width=1.0,
+            in_features=("dark1", "dark2", "dark3", "dark4", "dark5"),
+            in_channels=[64, 128, 256, 512, 1024],
+            depthwise=False,
+            act="silu",
+
+    ):
+        super().__init__()
+        self.backbone = CSPDarknet(depth, width, depthwise=depthwise, act=act)
+        self.in_features = in_features
+        self.in_channels = in_channels
+        Conv = DWConv if depthwise else BaseConv
+
         self.incidence = {33: [34, 43, 44, 22], 34: [35], 43: [53], 44: [45, 55, 54], 22: [11, 32, 23], 11: [12, 21],
                           32: [42], 23: [24], 12: [13], 21: [31], 42: [52], 24: [25], 13: [14], 31: [41], 14: [15],
                           41: [51]}
-        # Visited tracks the set of nodes that need to visited 
+        # Visited tracks the set of nodes that need to visited
         self.visited = set()
 
-        self.layers = layers
+        self.layers = [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 1, 1, 1, 1]]
         # keeps tracks the nodes that need to be returned (-1 in the layer_ranges implies that node is not visited)
         self.keeps = set()
 
@@ -31,7 +47,6 @@ class MatrixNet(nn.Module):
                 if e != -1:
                     self.keeps.add((j + 1) * 10 + (i + 1))
 
-        # we do a BFS to find the nodes that need to be visited using the incidence list of the graph above
         def _bfs(graph, start, end):
             queue = []
             queue.append([start])
@@ -54,17 +69,18 @@ class MatrixNet(nn.Module):
             _keeps = _keeps - self.visited
 
         # applied in a pyramid
-        self.pyramid_transformation_3 = conv1x1(512, 256)
-        self.pyramid_transformation_4 = conv1x1(1024, 256)
-        self.pyramid_transformation_5 = conv1x1(2048, 256)
+        self.pyramid_transformation_1 = conv1x1(int(in_channels[0] * width), 256)
+        self.pyramid_transformation_2 = conv1x1(int(in_channels[1] * width), 256)
+        self.pyramid_transformation_3 = conv1x1(int(in_channels[2] * width), 256)
+        self.pyramid_transformation_4 = conv1x1(int(in_channels[3] * width), 256)
+        self.pyramid_transformation_5 = conv1x1(int(in_channels[4] * width), 256)
 
-        # both based around resnet_feature_5
-        self.pyramid_transformation_6 = conv3x3(2048, 256, padding=1, stride=2)
-        self.pyramid_transformation_7 = conv3x3(256, 256, padding=1, stride=2)
 
         # applied after upsampling
         self.upsample_transform_1 = conv3x3(256, 256, padding=1)
         self.upsample_transform_2 = conv3x3(256, 256, padding=1)
+        self.downsample_transform_1=conv3x3(256, 256, padding=1)
+        self.downsample_transform_2=conv3x3(256, 256, padding=1)
 
         self.downsample_transformation_12 = conv3x3(256, 256, padding=1, stride=(1, 2))
         self.downsample_transformation_21 = conv3x3(256, 256, padding=1, stride=(2, 1))
@@ -74,40 +90,41 @@ class MatrixNet(nn.Module):
         height, width = scaled_feature.size()[2:]
         return F.interpolate(original_feature, scale_factor=scale_factor)[:, :, :height, :width]
 
-    def forward(self, x):
-        # don't need resnet_feature_2 as it is too large
-        _, resnet_feature_3, resnet_feature_4, resnet_feature_5 = self.resnet(x)
+    def forward(self, input):
+        """
+        Args:
+            inputs: input images.
+
+        Returns:
+            Tuple[Tensor]: FPN feature.
+        """
+
+        #  backbone
+        out_features = self.backbone(input)
+        features = [out_features[f] for f in self.in_features]
+        [d1, d2, d3, d4, d5] = features
 
         _dict = {}
 
-        # we only update the layers in self.visited
-
-        if 44 in self.visited:
-            _dict[44] = self.pyramid_transformation_6(resnet_feature_5)
-
-        if 55 in self.visited:
-            _dict[55] = self.pyramid_transformation_7(F.relu(_dict[44]))
-
         if 33 in self.visited:
-            _dict[33] = self.pyramid_transformation_5(resnet_feature_5)
-
-        if 22 in self.visited:
-            _dict[22] = self.pyramid_transformation_4(resnet_feature_4)
-
+            _dict[33] = self.pyramid_transformation_5(d3)
         if 33 in self.visited and 22 in self.visited:
-            upsampled_feature_5 = self._upsample(_dict[33], _dict[22])
-
+            upsampled_feature_d2 = self._upsample(_dict[33], d2)
         if 22 in self.visited:
-            _dict[22] = self.upsample_transform_1(torch.add(upsampled_feature_5, _dict[22]))
-
+            _dict[22] = self.upsample_transform_1(torch.add(upsampled_feature_d2, self.pyramid_transformation_2(d2)))
+        if 22 in self.visited and 11 in self.visited:
+            upsampled_feature_d1 = self._upsample(_dict[22], d1)
         if 11 in self.visited:
-            _dict[11] = self.pyramid_transformation_3(resnet_feature_3)
+            _dict[11] = self.upsample_transform_2(torch.add(upsampled_feature_d1, self.pyramid_transformation_1(d1)))
+        if 33 in self.visited and 44 in self.visited:
+            downsampled_feature_d4 = self._upsample(_dict[33], d4, scale_factor=0.5)
+        if 44 in self.visited:
+            _dict[44] = self.downsample_transform_1(torch.add(downsampled_feature_d4, self.pyramid_transformation_4(d4)))
+        if 44 in self.visited and 55 in self.visited:
+            downsampled_feature_d5 = self._upsample(_dict[44], d5, scale_factor=0.5)
+        if 55 in self.visited:
+            _dict[55] = self.downsample_transform_2(torch.add(downsampled_feature_d5, self.pyramid_transformation_5(d5)))
 
-        if 11 in self.visited and 22 in self.visited:
-            upsampled_feature_4 = self._upsample(_dict[22], _dict[11])
-
-        if 11 in self.visited:
-            _dict[11] = self.upsample_transform_2(torch.add(upsampled_feature_4, _dict[11]))
 
         if 12 in self.visited:
             _dict[12] = self.downsample_transformation_12(_dict[11])
@@ -156,80 +173,5 @@ class MatrixNet(nn.Module):
         if 54 in self.visited:
             _dict[54] = self.downsample_transformation_21(_dict[44])
 
-        # the layer ranges is defined column first so we invert the indexes for sorting
 
-        order_keeps = {(i % 10) * 10 + (i // 10): i for i in self.keeps}
-
-        # we return only the layers in self.keeps
-
-        return [_dict[order_keeps[i]] for i in sorted(order_keeps)]
-
-
-class SubNet(nn.Module):
-
-    def __init__(self, mode, classes=80, depth=4,
-                 base_activation=F.relu,
-                 output_activation=F.sigmoid):
-        super(SubNet, self).__init__()
-        self.classes = classes
-        self.depth = depth
-        self.base_activation = base_activation
-        self.output_activation = output_activation
-
-        self.subnet_base = nn.ModuleList([conv3x3(256, 256, padding=1)
-                                          for _ in range(depth)])
-
-        if mode == 'corners':
-            self.subnet_output = conv3x3(256, 2, padding=1)
-
-        if mode == 'centers':
-            self.subnet_output = conv3x3(256, 2, padding=1)
-        elif mode == 'classes':
-            # add an extra dim for confidence
-            self.subnet_output = conv3x3(256, self.classes, padding=1)
-
-    def forward(self, x):
-        for layer in self.subnet_base:
-            x = self.base_activation(layer(x))
-
-        x = self.subnet_output(x)
-        return x
-
-
-def _gather_feat(feat, ind, mask=None):
-    dim = feat.size(2)
-    ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
-    feat = feat.gather(1, ind)
-    if mask is not None:
-        mask = mask.unsqueeze(2).expand_as(feat)
-        feat = feat[mask]
-        feat = feat.view(-1, dim)
-    return feat
-
-
-def _tranpose_and_gather_feat(feat, ind):
-    feat = feat.permute(0, 2, 3, 1).contiguous()
-    feat = feat.view(feat.size(0), -1, feat.size(3))
-    feat = _gather_feat(feat, ind)
-    return feat
-
-
-def _nms(heat, kernel=1):
-    pad = (kernel - 1) // 2
-
-    hmax = nn.functional.max_pool2d(heat, (kernel, kernel), stride=1, padding=pad)
-    keep = (hmax == heat).float()
-    return heat * keep
-
-
-def _topk(scores, K=20):
-    batch, cat, height, width = scores.size()
-
-    topk_scores, topk_inds = torch.topk(scores.view(batch, -1), K)
-
-    topk_clses = (topk_inds / (height * width)).int()
-
-    topk_inds = topk_inds % (height * width)
-    topk_ys = (topk_inds / width).int().float()
-    topk_xs = (topk_inds % width).int().float()
-    return topk_scores, topk_inds, topk_clses, topk_ys, topk_xs
+        return _dict
